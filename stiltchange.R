@@ -68,9 +68,26 @@ dat$region<-ifelse(dat$`d$state` %in% c("Missouri","North Carolina","Tennessee")
 dat1<-dplyr::filter(dat,phenshift!="unknown")  
 dat2<-dplyr::filter(dat,phenfreq!="unknown")  
 
-ggplot(dat1,aes(phenshift))+geom_bar(aes(fill=phenshift),position = "dodge")+facet_grid(region~species)
+stilt1<-filter(dat1,species=="Microstegium")
+stilt2<-filter(dat2,species=="Microstegium")
+
+
+ggplot(stilt1,aes(phenshift))+geom_bar(aes(fill=timechange))+xlab("Is phenology shifting?")+ggthemes::theme_few()+scale_fill_viridis_d()
+
+ggplot(stilt2,aes(phenfreq))+geom_bar(aes(fill=freqchange))+xlab("Is phenology shifting?")+ggthemes::theme_few()+scale_fill_viridis_d()
+
+
+
+
+
+
+ggplot(dat1,aes(phenshift))+geom_bar(aes(fill=timechange),position = "dodge")+facet_grid(region~species)
 
 ggplot(dat2,aes(phenfreq))+geom_bar(aes(fill=phenfreq),position = "dodge")+facet_grid(~species)
+
+
+ggplot(stilt1,aes(phenshift))+geom_bar()
+
 
 dat1$resp<-ifelse(dat1$phenshift=="yes",1,0)
 dat2$resp<-ifelse(dat2$phenfreq=="yes",1,0)
@@ -78,6 +95,9 @@ dat2$resp<-ifelse(dat2$phenfreq=="yes",1,0)
 dat1<-dplyr::filter(dat1,!species %in% c("Pinus","Cytisus"))
 dat2<-dplyr::filter(dat2,!species %in% c("Pinus","Cytisus"))
 
+
+
+modstilt<-brm(resp~1,data=dat1,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
 
 library(brms)
 mod<-brm(resp~dur+species+(dur+species|region),data=dat1,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
