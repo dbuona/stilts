@@ -15,55 +15,76 @@ if(length(grep("dbuona", getwd()) > 0)) { # a fancy way to set your working dire
 } else if(length(grep("fitz", getwd()) > 0)) {
   setwd("")}
 
-d<-read.csv("data/phenology survey 2025.xlsx - full_datasheet.csv")
+d<-read.csv("data/phenology survey 2025.xlsx - full_datasheet.csv") ##read in data
 
 demos<-d[,1:16] ##this seperates out the 16 columns at are demographics
+colnames(demos) #which do we want
+demos<-dplyr::select(demos,ResponseId,Q1,Q2,Q3)
+colnames(demos)<-c("ResponseId","field","career","agency")
 
+###now seperate phenology shift questions
 cols_to_keep <- grep("114", names(d), value = TRUE) ##this makes a list of all columns names related to question 114
-
-
-timechange <- d[ , cols_to_keep] # Subset the data frame to keep only those columns
-
-colnames(timechange)<-c("Retnoutria","Artemesia","Berberis","Microstegium","Pueria","Celastrus",  # here I rename the columns based on their order in the Qualtrics table
+  timechange <- d[ , cols_to_keep] # Subset the data frame to keep only those columns
+  colnames(timechange)<-c("Retnoutria","Artemesia","Berberis","Microstegium","Pueria","Celastrus",  # here I rename the columns based on their order in the Qualtrics table
                         "Pinus","Vinetoxicum","Rhamnus",
                         "Elaeagnus","impatiens","Lonicera","Miscanthus",
                         "Rosa","Acer","Phragmotes","Cytisus","Centaurea",
                         "Ailanthis","Pastinaca","Ligustrum")
 
 
+##bindthem with the demographics we care about
+timechange<-cbind(demos,timechange)  
 
 #same as above but for questions related to frequency of management
 cols_to_keep <- grep("117", names(d), value = TRUE) 
-freqchange <- d[ , cols_to_keep]
+  freqchange <- d[ , cols_to_keep]
+  colnames(freqchange)<-c("Retnoutria","Artemesia","Berberis",
+                          "Microstegium","Pueria","Celastrus","Pinus",
+                          "Vinetoxicum","Rhamnus",
+                          "Elaeagnus","impatiens","Lonicera","Miscanthus","Rosa","Acer",
+                          "Phragmotes","Cytisus","Centaurea","Ailanthis","Pastinaca","Ligustrum")
+freqchange<-cbind(demos,freqchange)  
 
-colnames(freqchange)<-c("Retnoutria","Artemesia","Berberis","Microstegium","Pueria","Celastrus","Pinus","Vinetoxicum","Rhamnus",
-  "Elaeagnus","impatiens","Lonicera","Miscanthus","Rosa","Acer","Phragmotes","Cytisus","Centaurea","Ailanthis","Pastinaca","Ligustrum")
+  
 
 
 ##same as above, but related to how long you've been managing the specific species
 cols_to_keep <- grep("118", names(d), value = TRUE)
-dur<-d[ , cols_to_keep]
-colnames(dur)<-c("Retnoutria","Artemesia","Berberis","Microstegium","Pueria","Celastrus","Pinus","Vinetoxicum","Rhamnus",
+  dur<-d[ , cols_to_keep]
+  colnames(dur)<-c("Retnoutria","Artemesia","Berberis","Microstegium","Pueria","Celastrus","Pinus","Vinetoxicum","Rhamnus",
                    "Elaeagnus","impatiens","Lonicera","Miscanthus","Rosa","Acer","Phragmotes","Cytisus","Centaurea","Ailanthis","Pastinaca","Ligustrum")
 
-d$Q35 ##yhis is the question
-d$state ## this is the state they arwe part of
+dur$ResponseId  
+dur$ResponseId<-d$ResponseId #append dur with a response id for indexing
+  
+  ###useful columns
 timechange<-as.data.frame(cbind(timechange,d$Q35,d$state))
 freqchange<-as.data.frame(cbind(freqchange,d$Q35,d$state))
-dur<-as.data.frame(cbind(dur,d$Q35,d$state))
+colnames(timechange)[26:27]<-c("managementPeriod","state") ## give some columns better names
+colnames(freqchange)[26:27]<-c("managementPeriod","state")
 
 
-timechange<-tidyr::gather(timechange,"species","timechange",1:21) ##switches data to long formate for regression analysis 
-freqchange<-tidyr::gather(freqchange,"species","freqchange",1:21)
+
+
+timechange<-tidyr::gather(timechange,"species","timechange",5:26) ##switches data to long formate for regression analysis 
+freqchange<-tidyr::gather(freqchange,"species","freqchange",5:26)
+
 dur<-tidyr::gather(dur,"species","dur",1:21)
 
-freqchange<-dplyr::select(freqchange,-species,-`d$Q35`,-`d$state`) ### get ride of species colummn
-dur<-dplyr::select(dur,-species,-`d$Q35`,-`d$state`)
+timechange<-dplyr::left_join(timechange,dur)
+freqchange<-dplyr::left_join(freqchange,dur)
 
-dat<-cbind(freqchange,timechange,dur) ## bind the three datasets together
-dat[dat == ""] <- NA # convert blanks to NAs
 
-#The data is now formated
+timechange[timechange == ""] <- NA # convert blanks to NAs
+freqchange[freqchange == ""] <- NA # convert blanks to NAs
+
+########Pause the data are now formated (i.e., clean!)##########
+####you could write out csv's at this stage to use for analyses and visualizations##### 
+############I might consider renaming this file about cleaning###################
+stop("not an error, I think this a a good place to pause in terms of understanding the cleaing work flow and preparing to integrate new survey data")
+
+
+
 
 ### new column to assess whether on not climate change timing shifts are reported
 dat$phenshift<-NA
@@ -112,11 +133,16 @@ dat2<-dplyr::filter(dat2,!species %in% c("Pinus","Cytisus"))
 modstilt<-brm(resp~1,data=dat1,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
 
 library(brms)
+
 mod<-brm(resp~dur+species+(dur+species|region),data=dat1,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
 mod1<-brm(resp~dur+species+(dur+species|region),data=dat2,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
 
 
 modz<-brm(resp~dur+species+(1|region),data=dat1,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
+conditional_effects(modz)
+
+
+
 modz1<-brm(resp~dur+species+(1|region),data=dat2,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
 
 
@@ -152,6 +178,7 @@ table(dat11$nimble)
 dat11<-dplyr::filter(dat11,!species %in% c("impatiens","Miscanthus"))
 
 mod.nim<-brm(nimble~dur+species+(1|region),data=dat11,family = "bernoulli",warmup = 3000,iter = 4000,control=list(adapt_delta=.99))
+conditional_effects(mod.nim)
 
 
 dat22<-dplyr::filter(dat22,!species %in% c("Pueria"))
