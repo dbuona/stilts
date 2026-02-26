@@ -2,6 +2,7 @@ rm(list=ls())
 options(stringsAsFactors = FALSE)
 options(mc.cores = parallel::detectCores())
 graphics.off()
+library(ggplot2)
 
 
 setwd("~/Documents/git/stilts/")
@@ -50,5 +51,28 @@ ggplot(allps,aes(goal))+geom_bar()
 
 
 ggplot(allps,aes(goal))+geom_bar(aes(fill=efficacy),position="fill")+
-  scale_y_continuous(labels = scales::percent_format()) +scale_fill_colorblind()+
-  ggthemes::theme_few()
+  scale_y_continuous(labels = scales::percent_format()) +scale_fill_brewer(palette = "Greens")+
+  ggthemes::theme_few(base_size = 18)+ylab("")
+
+library(dplyr)
+library(forcats)
+
+# Calculate proportion of Extremely + Very effective
+goal_order <- allps %>%
+  mutate(high_eff = efficacy %in% c("Extremely effective", "Very effective")) %>%
+  group_by(goal) %>%
+  summarise(prop_high = mean(high_eff, na.rm = TRUE)) %>%
+  arrange(desc(prop_high))
+
+# Apply ordering
+allps$goal <- factor(allps$goal, levels = goal_order$goal)
+
+# Plot
+jpeg("updated_goals.jpeg",width = 12,height=6, units = "in",res=200)
+ggplot(allps, aes(goal)) +
+  geom_bar(aes(fill = efficacy), position = "fill") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_brewer(palette = "Greens") +xlab("Management goal")+
+  ggthemes::theme_few(base_size = 16) +
+  ylab("")+ theme(legend.position = "top",legend.title = element_blank())
+dev.off()
