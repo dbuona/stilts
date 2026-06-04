@@ -33,7 +33,7 @@ cols_to_keep <- grep("114", names(d), value = TRUE) ##this makes a list of all c
 
 
 ##bindthem with the demographics we care about
-timechange<-cbind(demos,timechange)  
+#timechange<-cbind(demos,timechange)  
 
 #same as above but for questions related to frequency of management
 cols_to_keep <- grep("117", names(d), value = TRUE) 
@@ -43,7 +43,7 @@ cols_to_keep <- grep("117", names(d), value = TRUE)
                           "Vinetoxicum","Rhamnus",
                           "Elaeagnus","impatiens","Lonicera","Miscanthus","Rosa","Acer",
                           "Phragmotes","Cytisus","Centaurea","Ailanthis","Pastinaca","Ligustrum")
-freqchange<-cbind(demos,freqchange)  
+#freqchange<-cbind(demos,freqchange)  
 
   
 
@@ -56,29 +56,154 @@ cols_to_keep <- grep("118", names(d), value = TRUE)
 
 dur$ResponseId  
 dur$ResponseId<-d$ResponseId #append dur with a response id for indexing
-  
-  ###useful columns
-timechange<-as.data.frame(cbind(timechange,d$Q35,d$state))
-freqchange<-as.data.frame(cbind(freqchange,d$Q35,d$state))
-colnames(timechange)[26:27]<-c("managementPeriod","state") ## give some columns better names
-colnames(freqchange)[26:27]<-c("managementPeriod","state")
+
+
+#now try and pull in 2026 data
 
 
 
-
-timechange<-tidyr::gather(timechange,"species","timechange",5:26) ##switches data to long formate for regression analysis 
-freqchange<-tidyr::gather(freqchange,"species","freqchange",5:26)
+timechange<-tidyr::gather(timechange,"species","timechange",1:21) ##switches data to long formate for regression analysis 
+freqchange<-tidyr::gather(freqchange,"species","freqchange",1:21)
 
 dur<-tidyr::gather(dur,"species","dur",1:21)
 
-timechange<-dplyr::left_join(timechange,dur)
-freqchange<-dplyr::left_join(freqchange,dur)
+#timechange<-dplyr::left_join(timechange,dur)
+#freqchange<-dplyr::left_join(freqchange,dur)
 
 
 timechange[timechange == ""] <- NA # convert blanks to NAs
 freqchange[freqchange == ""] <- NA # convert blanks to NAs
 
-########Pause the data are now formated (i.e., clean!)##########
+
+d2<-read.csv("data/phenology survey 2026.xlsx - full_datasheet.csv")
+
+cols_to_keep2 <- grep("114", names(d2), value = TRUE) ##this makes a list of all columns names related to question 114
+timechange2 <- d2[ , cols_to_keep2] # Subset the data frame to keep only those columns
+colnames(timechange2)<-c("Celastrus","Lonicera","Retnoutria","Pueria","Rosa","Microstegium", "Elaeagnus","Berberis","Pinus", 
+                         "Vinetoxicum","Rhamnus","Miscanthus","impatiens","Lonicera japonica","Artemisia","Acer",
+                         "Phragmotes","Ligustrum","Cytisus", "Centaurea","Ailanthis","Pastinaca")
+
+
+
+timechange2<-tidyr::gather(timechange2,"species","timechange",1:22)
+timechange2[timechange2 == ""] <- NA # convert blanks to NAs
+timechange2$phenshift<-NA
+table(timechange2$timechange)
+
+
+timechange2<-filter(timechange2,!is.na(timechange))
+timechange2$phenshift<-ifelse(timechange2$timechange %in% c("Treatment starting earlier due to changing phenology", "Treatment ending later due to changing phenology",
+                                                            "Treatment starting earlier due to changing phenology,Treatment ending later due to changing phenology",
+                                                            "Treatment starting earlier due to changing phenology,Treatment ending later due to changing phenology,Starting earlier or ending later for other reasons",
+                                                            "Treatment ending later due to changing phenology,Starting earlier or ending later for other reasons",
+                                                            "Starting earlier or ending later for other reasons,At the same time due to no change in phenology"),"yes","no")  
+
+timechange2$phenshift<-ifelse(timechange2$timechange %in% c("I don't know","Other","Other,I don't know"),"unknown",timechange2$phenshift)
+ggplot(timechange2,aes(species))+geom_bar(aes(fill=phenshift),position="dodge")
+timechange2<-dplyr::filter(timechange2,phenshift!="unknown")  
+ggplot(timechange2,aes(phenshift))+geom_bar(aes(fill=timechange))+facet_grid(~species)
+
+
+
+
+
+###useful columns
+#timechange<-as.data.frame(cbind(timechange,d$Q35,d$state))
+#freqchange<-as.data.frame(cbind(freqchange,d$Q35,d$state))
+#colnames(timechange)[26:27]<-c("managementPeriod","state") ## give some columns better names
+#colnames(freqchange)[26:27]<-c("managementPeriod","state")
+
+#timechange[timechange == ""] <- NA # convert blanks to NAs
+timechange<-filter(timechange,!is.na(timechange))
+timechange$phenshift<-NA
+table(timechange$timechange)
+timechange$phenshift<-ifelse(timechange$timechange %in% c("At the same time due to no change in phenology","Earlier or later for other reasons",
+                                                          "Earlier or later for other reasons,At the same time due to no change in phenology"),"no","yes")
+timechange$phenshift<-ifelse(timechange$timechange %in% c("I don't know","Other"),"unknown",timechange$phenshift)
+
+timechange<-dplyr::filter(timechange,phenshift!="unknown")  
+oldy<-dplyr::select(timechange,species,timechange,phenshift)
+oldy$survey<-"2025"
+timechange2$survey<-"2026"
+com1<-rbind(oldy,timechange2)
+ggplot(com1,aes(survey))+geom_bar(aes(color=phenshift,fill=phenshift),position="fill")+facet_wrap(~species,nrow=3)+geom_hline(yintercept=.5)+
+  scale_fill_viridis_d()
+com1$species<-ifelse(com1$species=="Artemesia","Artemisia",com1$species)
+ggplot(com1,aes(survey))+geom_bar(aes(color=phenshift,fill=phenshift),position="dodge")+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+
+
+
+cols_to_keep22 <- grep("117", names(d2), value = TRUE) 
+freqchange2 <- d2[ , cols_to_keep22]
+colnames(freqchange2)<-c("Celastrus","Lonicera","Retnoutria","Pueria","Rosa","Microstegium", "Elaeagnus","Berberis","Pinus", 
+                         "Vinetoxicum","Rhamnus","Miscanthus","impatiens","Lonicera japonica","Artemisia","Acer",
+                         "Phragmotes","Ligustrum","Cytisus", "Centaurea","Ailanthis","Pastinaca")
+
+freqchange2<-tidyr::gather(freqchange2,"species","freqchange",1:22)
+freqchange2[freqchange2 == ""] <- NA # convert blanks to NAs
+freqchange2<-filter(freqchange2,!is.na(freqchange))
+freqchange2$freqshift<-NA
+table(freqchange2$freqchange)
+freqchange2$freqshift<-ifelse(freqchange2$freqchange %in% c("Less frequently due to changing phenology","Less frequently due to changing phenology,Other",
+                                                            "More frequently due to changing phenology","More frequently due to changing phenology,Less frequently due to changing phenology"),"yes","no")
+freqchange2$freqshift<-ifelse(freqchange2$freqchange %in% c("I don't know","Other","Other,I don't know"),"unknown",freqchange2$freqshift)
+
+freqchange<-filter(freqchange,!is.na(freqchange))
+freqchange$freqshift<-NA
+table(freqchange$freqchange)
+freqchange$freqshift<-ifelse(freqchange$freqchange %in% c("Less frequently due to changing phenology","More frequently due to changing phenology",
+                                                          "More frequently due to changing phenology,At the same frequency despite a change in phenology"),"yes","no")                                                          
+freqchange$freqshift<-ifelse(freqchange$freqchange %in% c("I don't know","Other","Other,I don't know"),"unknown",freqchange$freqshift)
+
+
+
+freqchange$survey<-"2025"
+freqchange2$survey<-"2026"
+com2<-rbind(freqchange,freqchange2)
+com2<-dplyr::filter(com2,freqshift!="unknown")
+com2<-filter(com2,freqchange!="I don’t know" )
+ggplot(com2,aes(survey))+geom_bar(aes(color=freqshift,fill=freqshift),position="fill")+facet_wrap(~species,nrow=3)+geom_hline(yintercept=.5)+
+  scale_fill_viridis_d()
+com2$species<-ifelse(com2$species=="Artemesia","Artemisia",com2$species)
+ggplot(com2,aes(survey))+geom_bar(aes(color=freqshift,fill=freqshift),position="dodge")+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+
+com1n<-filter(com1,timechange %in% c("At the same time due to no change in phenology","At the same time despite changing phenology"))
+unique(com1n$timechange)
+ggplot(com1n,aes(survey))+geom_bar(aes(color=timechange,fill=timechange))+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+ggplot(com1n,aes(survey))+geom_bar(aes(color=timechange,fill=timechange),position="fill")+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+
+
+  
+ unique(com2$freqchange)
+ com2n<-filter(com2, freqchange %in%  c("At the same frequency due to no change in phenology","At the same frequency despite a change in phenology"))
+
+ 
+ggplot(com1n,aes(survey))+geom_bar(aes(color=timechange,fill=timechange))+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+ggplot(com2n,aes(survey))+geom_bar(aes(color=freqchange,fill=freqchange),position="fill")+facet_wrap(~species,nrow=3)+scale_fill_viridis_d()
+unique(com1$timechange)
+com1$cc<-ifelse(com1$timechange %in% c("At the same time due to no change in phenology","Earlier or later for other reasons", "Earlier or later for other reasons,At the same time due to no change in phenology"),"no","yes") 
+
+ggplot(com1,aes(cc))+geom_bar(aes(fill=phenshift),position="fill")+facet_wrap(~species,nrow=3)+scale_fill_viridis_d(option = "C")
+ggplot(com1,aes(phenshift))+geom_bar(aes(fill=cc))+facet_wrap(~species,nrow=3)+scale_fill_viridis_d(option = "C")
+
+
+ggplot(com1,aes(species))+geom_bar(aes(fill=cc,color=phenshift),position="fill")+facet_wrap(~species,nrow=3,scale="free")+
+  scale_fill_viridis_d()+scale_colour_manual(values=c("grey","black"))
+jpeg("longtermphenshift.jpeg")
+ggplot(com1,aes(species))+geom_bar(aes(fill=cc,color=phenshift))+facet_wrap(~species,nrow=3,scale="free")+
+  scale_fill_viridis_d()+scale_colour_manual(values=c("grey","black"))
+dev.off()
+
+unique(com2$freqchange)
+com2$cc<-ifelse(com2$freqchange %in%c("At the same frequency due to no change in phenology","More or less frequently for other reasons"),"no","yes")
+ggplot(com2,aes(species))+geom_bar(aes(fill=cc,color=freqshift),position="fill")+facet_wrap(~species,nrow=3,scale="free")+
+  scale_fill_viridis_d(option="C")+scale_colour_manual(values=c("grey","black"))
+jpeg("longtermfreqshift.jpeg")
+ggplot(com2,aes(species))+geom_bar(aes(fill=cc,color=freqshift))+facet_wrap(~species,nrow=3,scale="free")+
+  scale_fill_viridis_d(option="C")+scale_colour_manual(values=c("grey","black"))
+dev.off()
+
+########Pause the data are now formated (i.e., clean!)##################Pause the data are now formated scale_colour_grey()(i.e., clean!)##########
 ####you could write out csv's at this stage to use for analyses and visualizations##### 
 ############I might consider renaming this file about cleaning###################
 stop("not an error, I think this a a good place to pause in terms of understanding the cleaing work flow and preparing to integrate new survey data")
