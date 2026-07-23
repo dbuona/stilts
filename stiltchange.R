@@ -3,8 +3,7 @@
 ##collaborators include Fitz and Bethany
 
 ###house keeping
-rm(list=ls()) #
-removes everything in R environment
+rm(list=ls()) #removes everything in R environment
 options(stringsAsFactors = FALSE) #stops R from automatically treating string as factors
 options(mc.cores = parallel::detectCores()) # for Bayesian models, paralleled chain sampling
 graphics.off() # removes anything in graphic environemnt
@@ -13,10 +12,12 @@ library(ggplot2)
 library(brms)
 library(tidybayes)
 
-if(length(grep("dbuona", getwd()) > 0)) { # a fancy way to set your working direcyotu
+if(length(grep("danielbuonaiuto", getwd()) > 0)) { # a fancy way to set your working direcyotu
   setwd("~/Documents/git/stilts/")
 } else if(length(grep("fitz", getwd()) > 0)) {
   setwd("")}
+
+
 
 d<-read.csv("data/phenology survey 2025.xlsx - full_datasheet.csv") ##read in data
 
@@ -37,7 +38,7 @@ cols_to_keep <- grep("114", names(d), value = TRUE) ##this makes a list of all c
 
 ##bindthem with the demographics we care about
 #timechange<-cbind(demos,timechange)  
-if(FALSE){
+
 #same as above but for questions related to frequency of management
 cols_to_keep <- grep("117", names(d), value = TRUE) 
   freqchange <- d[ , cols_to_keep]
@@ -50,7 +51,7 @@ cols_to_keep <- grep("117", names(d), value = TRUE)
 
   
 
-}
+
 ##same as above, but related to how long you've been managing the specific species
 cols_to_keep <- grep("118", names(d), value = TRUE)
   dur<-d[ , cols_to_keep]
@@ -75,8 +76,10 @@ dur$ResponseId<-d$ResponseId #append dur with a response id for indexing
 
 
 timechange[timechange == ""] <- NA # convert blanks to NAs
-#freqchange[freqchange == ""] <- NA # convert blanks to NAs
+freqchange[freqchange == ""] <- NA # convert blanks to NAs
 
+
+##current data objects time change, freq change, dur and dumos
 
 d2<-read.csv("data/phenology survey 2026.xlsx - full_datasheet.csv")
 
@@ -88,6 +91,17 @@ colnames(timechange2)<-c("Celastrus","Lonicera","Retnoutria","Pueria","Rosa","Mi
 
 
 timechange2[timechange2 == ""] <- NA # convert blanks to NAs
+
+
+###now frequency
+cols_to_keep2a <- grep("117", names(d2), value = TRUE) 
+freqchange2 <- d2[ , cols_to_keep2a] # Subset the data frame to keep only those columns
+colnames(freqchange2)<-c("Celastrus","Lonicera","Retnoutria","Pueria","Rosa","Microstegium", "Elaeagnus","Berberis","Pinus", 
+                         "Vinetoxicum","Rhamnus","Miscanthus","impatiens","Lonicera japonica","Artemisia","Acer",
+                         "Phragmites","Ligustrum","Cytisus", "Centaurea","Ailanthis","Pastinaca")
+
+
+
 
 
 
@@ -115,8 +129,17 @@ dur2$juris<-d2$Q35
 timechange$ResponseId<-d$ResponseId
 timechange2$ResponseId<-d2$ResponseId
 
+freqchange$ResponseId<-d$ResponseId
+freqchange2$ResponseId<-d2$ResponseId
+
+
 timechange<-tidyr::gather(timechange,"species","timechange",1:21)
 timechange2<-tidyr::gather(timechange2,"species","timechange",1:22)
+
+freqchange<-tidyr::gather(freqchange,"species","freqchange",1:21)
+freqchange2<-tidyr::gather(freqchange2,"species","freqchange",1:22)
+
+
 dur<-tidyr::gather(dur,"species","dur",1:21)
 dur2<-tidyr::gather(dur2,"species","dur",1:22)
 
@@ -126,14 +149,29 @@ twen6<-left_join(dur2,timechange2)
 twen5<-left_join(twen5,demos)
 twen6<-left_join(twen6,demos2)
 
+freq5<-left_join(dur,freqchange)
+freq6<-left_join(dur2,freqchange2)
+freq5<-left_join(freq5,demos)
+freq6<-left_join(freq6,demos2)
 
 
 twen5$surveyYear<-2025
 twen6$surveyYear<-2026
 
+freq5$surveyYear<-2025
+freq6$surveyYear<-2026
+
 
 
 dat<-rbind(twen5,twen6)
+dat2<-rbind(freq5,freq6)
+
+write.csv(dat,"Input/timechange.csv",row.names = FALSE)
+write.csv(dat2,"Input/freqchange.csv",row.names = FALSE)
+
+
+
+
 unique(dat$timechange)
 
 #idk<-filter(dat,timechange %in% c("I don't know","Other,I don't know", "Other"))
@@ -249,7 +287,8 @@ ggpubr::ggarrange(oneA,oneB,ncol=1,nrow=2) ###FIgure 1
 
 #question2 if you see cliamte change what determines whether or not you shift?
 
-daterCC<-filter(dater,CC==1)
+
+##
 
 unique(daterCC$timechange)
 
