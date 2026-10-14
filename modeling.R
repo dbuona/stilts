@@ -7,7 +7,8 @@ rm(list=ls()) #removes everything in R environment
 options(stringsAsFactors = FALSE) #stops R from automatically treating string as factors
 options(mc.cores = parallel::detectCores()) # for Bayesian models, paralleled chain sampling
 graphics.off() # removes anything in graphic environemnt
-#options(device = "RStudioGD")
+dev.off()
+options(device = "RStudioGD")
 library(dplyr)
 library(ggplot2)
 library(rstan)
@@ -17,9 +18,10 @@ library(geosphere)
 library(rnaturalearth)
 library(sf)
 
-#graphics.off()
+ 
+graphics.off()
 
-if(length(grep("dbuona", getwd()) > 0)) { # a fancy way to set your working direcyotu
+if(length(grep("danielbuona", getwd()) > 0)) { # a fancy way to set your working direcyotu
   setwd("~/Documents/git/stilts/")
 } else if(length(grep("fitz", getwd()) > 0)) {
   setwd("")}
@@ -31,8 +33,8 @@ class(timer$CC)
 table(timer$juris)
 
 
-merge1<-select(timer,ResponseId,CC,dur,minCareer,state,species,agency)
-merge2<-select(freqer,ResponseId,CC,dur,minCareer,state,species,agency)
+merge1<-select(timer,ResponseId,CC,dur,minCareer,state,species,agency,juris)
+merge2<-select(freqer,ResponseId,CC,dur,minCareer,state,species,agency,juris)
 
 merge1$dataset<-"time"
 merge2$dataset<-"frequency"
@@ -43,6 +45,7 @@ rm(merge2)
 
 table(d$CC)
 1103/(1648+1103)
+
 
 if(FALSE){
 temp<-read.csv("Input/climate_dif.csv")
@@ -57,15 +60,16 @@ unique(d$state)
 NECASC<-c("Maine", "New Hampshire", "Vermont","Massachusetts", "Rhode Island",
           "Connecticut","New York", "New Jersey","Pennsylvania","Delaware",
           "Maryland","Virginia", "Kentucky", "West Virginia")
-d<-filter(d,state %in% NECASC)
+
+#d<-filter(d,state %in% NECASC)
 d$minCareer_s<-scale(d$minCareer)
 d$dur_s<-scale(d$dur)
-d$greenup_s<-scale(d$slope)
-d$green_var<-scale(d$se_doy)
+#d$greenup_s<-scale(d$slope)
+#d$green_var<-scale(d$se_doy)
 
 d$species<-ifelse(d$species=="Artemesia","Artemisia",d$species) ##fix species name
 table(d$CC)
-759/(759+1125)
+
 
 if(FALSE){
 # Pick your list of states
@@ -117,174 +121,71 @@ d$lat_sc<-scale(d$lat)
 }
 d$career<-as.factor(d$minCareer)
 cor(d$greenup_s,d$green_var)
-model.1<-brm(CC~dur+slope+(1|species)+(1|ResponseId),
+#model.1<-brm(CC~dur+slope+(1|species)+(1|ResponseId),
+#             iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
+
+unique(d$juris)
+d.prime<-filter(d, juris!=" Other (please specify)")
+model.1a<-brm(CC~dur+(1|species)+(1|juris)+(1|agency)+(1|state)+(1|ResponseId),
              iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-model.1a<-brm(CC~anom_s+dur_s+minCareer_s+anom_s:dur_s+anom_s:minCareer_s+minCareer_s:dur_s+(1|species)+(1|agency)+(1|ResponseId),
-             iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
-
-range(d$anomoly,na.rm=TRUE)
-model.1b<-brm(CC~dur_s*minCareer_sanom_s+(anom_s|species)+(lat_sc|agency)+(1|ResponseId),
+model.1ab<-brm(CC~dur+(1|species)+(1|juris)+(1|agency)+(1|ResponseId),
               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-fixef(model.1,probs = c(.25,.75))
-fixef(model.1a,probs = c(.25,.75))
+model.1ac<-brm(CC~dur+(1|species)+(1|juris)+(1|ResponseId),
+               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-conditional_effects(model.1,prob = .5)
+model.1ad<-brm(CC~dur+(1|species)+(1|juris)+(1|state)+(1|ResponseId),
+               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-conditional_effects(model.1b,prob = .5)
-fixef(model.1b,probs = c(.25,.75))
+model.1ae<-brm(CC~dur+(1|species)+(1|state)+(1|ResponseId),
+               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-spdata<-data.frame(species=unique(d$species),dur=mean(d$dur,na.rm=TRUE),
-                   slope=mean(d$slope,na.rm=TRUE),green_var=mean(d$green_var,nm.rm=TRUE))
+model.1af<-brm(CC~dur+(1|species)+(1|agency)+(1|ResponseId),
+               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
+model.1ag<-brm(CC~dur+(1|species)+(1|ResponseId),
+               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-statedata<-data.frame(state=unique(d$state),dur_s=mean(d$dur_s,na.rm=TRUE),minCareer_s=mean(d$minCareer_s))
-agedata<-data.frame(agency=unique(d$agency),dur_s=mean(d$dur_s,na.rm=TRUE),minCareer_s=mean(d$minCareer_s),sd_doy=mean(d$sd_doy,na.rm=TRUE))
-agedata<-filter(agedata,agency!='Tribal/First Nation')###not in model
+summary(model.1ag)
 
+model.1a<-add_criterion(model.1a, "loo",moment_match = TRUE)
+model.1ab<-add_criterion(model.1ab, "loo",moment_match = TRUE)
+model.1ac<-add_criterion(model.1ac, "loo",moment_match = TRUE)
+model.1ad<-add_criterion(model.1ad, "loo",moment_match = TRUE)
+model.1ae<-add_criterion(model.1ae, "loo",moment_match = TRUE)
+model.1af<-add_criterion(model.1af, "loo",moment_match = TRUE)
+model.1ag<-add_criterion(model.1ag, "loo",moment_match = TRUE)
+loo_compare(model.1a,model.1ab,model.1ac,model.1ad,model.1ae,model.1af,model.1ag,criterion = "loo")
 
-range(d$anom_s,na.rm=TRUE)
-
-
-
-preds<-epred_draws(model.1,newdata=spdata,re_formula = ~(1|species))
-predage<-epred_draws(model.1,newdata=agedata,re_formula = ~(1|agency))
-
-
-ggplot(preds,aes(reorder(species,.epred),.epred))+
-  stat_pointinterval(.width = .5)+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-  ylab( "Likelihood of observing \nphenological shifts")+xlab("species")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-ggplot(predage,aes(reorder(agency,.epred),.epred))+
-  stat_pointinterval(.width = .5)+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-  ylab( "Likelihood of observing \nphenological shifts")+xlab("agency")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-predstate<-epred_draws(model.1,newdata=statedata,re_formula = ~(1|state))
-predstate<-left_join(predstate,temp)
-
-ggplot(predstate,aes(anomoly,.epred))+
-  geom_smooth(method="lm")+
-
-  ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-  ylab( "Likelihood of observing \nphenological shifts")+xlab("lat")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-unique(predstate$state)
-states<-c("NY","ME","VT","MD","ON","MA","MN",
-          "IN","MI","WI","VA","PE","NC","RI","MO","OH","TN","WV","NH","NJ","CT","KY","QC","KS")
-
-statedata$states<-states
-
-oneB<-ggpubr::ggarrange(ggplot(preds,aes(reorder(species,.epred),.epred))+
-                          stat_pointinterval(.width = .5)+#ylim(0,1)+
-                          ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-                          ylab( "Likelihood of observing \nphenological shifts")+xlab("species")+
-                          theme(axis.text.x = element_text(angle = 45, hjust = 1)),
-                        
-                        ggplot(predstate,aes(reorder(state,.epred),.epred))+
-                          stat_pointinterval(.width = .5)+#ylim(0,1)+
-                          ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-                          ylab( "Likelihood of observing \nphenological shifts")+xlab("state/province")+
-                          theme(axis.text.x = element_text(angle = 45, hjust = 1)),
-                        
-                        ggplot(predage,aes(reorder(agency,.epred),.epred))+
-                          stat_pointinterval(.width = .5)+coord_cartesian(ylim=c(.1,.9))+
-                          #ylim(0,1)
-                          ggthemes::theme_few()+
-                          ylab( "Likelihood of observing \nphenological shifts")+xlab("agency")+
-                          theme(axis.text.x = element_text(angle = 45, hjust = 1)),nrow=1,ncol=3,labels=c("c)","d)","e)"))
-
-ggpubr::ggarrange(oneA,oneB,ncol=1,nrow=2) ###FIgure 1
-
-
-####### next
+### now change
 timer2<-read.csv("Input/timing_cleanCC.csv")
 freqer2<-read.csv("Input/frequency_cleanCC.csv")
 
-if(FALSE){
-  timer2$minCareer_s<-scale(timer2$minCareer)
-  timer2$dur_s<-scale(timer2$dur)
-  
-  freqer2$minCareer_s<-scale(freqer2$minCareer)
-  freqer2$dur_s<-scale(freqer2$dur)
-  
-model.mc1<-brm(management_shift~dur_s+minCareer_s+(1|state)+(1|species)+(1|agency)+(1|ResponseId),
-               iter=5000,warmup=4000, control = list(adapt_delta=0.99),
-               data=timer2,family = "bernoulli")
-summary(model.mc1,prob = .5)
-
-model.mc2<-brm(management_shift~dur_s+minCareer_s+(1|state)+(1|species)+(1|agency)+(1|ResponseId),
-               iter=5000,warmup=4000, control = list(adapt_delta=0.99),
-               data=freqer2,family = "bernoulli")
-
-summary(model.mc2,prob = .5)
-}
-merge11<-select(timer2,ResponseId,management_shift,dur,minCareer,state,species,agency)
-merge22<-select(freqer2,ResponseId,management_shift,dur,minCareer,state,species,agency)
+merge11<-select(timer2,ResponseId,management_shift,dur,minCareer,state,species,agency,juris)
+merge22<-select(freqer2,ResponseId,management_shift,dur,minCareer,state,species,agency,juris)
 
 merge11$dataset<-"time"
 merge22$dataset<-"frequency"
 d2<-rbind(merge11,merge22)
-d2$minCareer_s<-scale(d2$minCareer)
-d2$dur_s<-scale(d2$dur)
+#d2$minCareer_s<-scale(d2$minCareer)
+#d2$dur_s<-scale(d2$dur)
 d2$species<-ifelse(d2$species=="Artemesia","Artemisia",d2$species) ##fix species name
 
-d2<-filter(d2, state %in% NECASC)
-d2<-left_join(d2,gren)
+#d2<-filter(d2, state %in% NECASC)
+#d2<-left_join(d2,gren)
 
-d2$minCareer_s<-scale(d2$minCareer)
-d2$dur_s<-scale(d2$dur)
+#d2$minCareer_s<-scale(d2$minCareer)
+#d2$dur_s<-scale(d2$dur)
 
-d2$greenup_s<-scale(d2$slope)
-d2$green_var<-scale(d2$se_doy)
-cor(d2$green_var,d2$greenup_s)
 
-model.mc1<-brm(management_shift~dur+slope+dataset+(dataset|species)+(1|ResponseId),
+model.mc1<-brm(management_shift~dur+dataset+(dataset|species)+(dataset|juris)+(1|ResponseId),
                iter=5000,warmup=4000, control = list(adapt_delta=0.99),
                data=d2,family = "bernoulli")
-fixef(model.mc1,prob=c(.25,.75))
-conditional_effects(model.mc1,prob = .5)
 
-spdata2<-data.frame(species=rep(unique(d2$species),2),dataset=rep(c("time","frequency"),each=21),
-                    dur=mean(d2$dur,na.rm=TRUE),slope=mean(d2$slope))
-statedata2<-data.frame(state=rep(unique(d2$state),2),dataset=rep(c("time","frequency"),each=24),dur_s=mean(d2$dur_s,na.rm=TRUE),minCareer_s=mean(d2$minCareer_s))
-agedata2<-data.frame(agency=rep(unique(d2$agency),2),dataset=rep(c("time","frequency"),each=9),dur_s=mean(d2$dur_s,na.rm=TRUE),minCareer_s=mean(d2$minCareer_s))
+summary(model.mc1)
 
 
-preds2<-epred_draws(model.mc1,newdata=spdata2,re_formula = ~(dataset|species))
-predstate2<-epred_draws(model.mc1,newdata=statedata2,re_formula = ~(1|state))
-
-
-predage2<-epred_draws(model.mc1,newdata=agedata2,re_formula = ~(1|agency))
-#options(device = "quartz")
-
-ggpubr::ggarrange(ggplot(preds2,aes(reorder(species,.epred),.epred))+
-  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-  ylab( "Likelihood adjusting management")+xlab("species")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3")),
-
-
-ggplot(predstate2,aes(reorder(state,.epred),.epred))+
-  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-  ylab( "Likelihood adjusting management")+xlab("state")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3")),
-
-ggplot(predage2,aes(reorder(agency,.epred),.epred))+
-  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-  ylab( "Likelihood adjusting management")+xlab("agency")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3")),nrow=1,common.legend = TRUE)
-
-######how is management shifting
 timer3<-read.csv("Input/timing_cleanDir.csv")
 freqer3<-read.csv("Input/frequency_cleanDir.csv")
 
@@ -309,27 +210,181 @@ timer3$howshift <- relevel(as.factor(timer3$howshift), ref = "earlier & later")
 table(freqer3$freqchange)
 freqer3$howshift<-ifelse(freqer3$freqchange %in% c("Less frequently due to changing phenology","Less frequently due to changing phenology,Other"),"less","more")
 
-merge111<-select(timer3,ResponseId,dur,minCareer,state,species,agency,howshift)
-merge222<-select(freqer3,ResponseId,dur,minCareer,state,species,agency,howshift)
+merge111<-select(timer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
+merge222<-select(freqer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
 
 
 timer3$species<-ifelse(timer3$species=="Artemesia","Artemisia",timer3$species) ##fix species name
 
-timer3<-filter(timer3,state %in% NECASC)
+#timer3<-filter(timer3,state %in% NECASC)
 
-timer3<-left_join(timer3,gren)
-timer3$minCareer_s<-scale(timer3$minCareer)
-timer3$dur_s<-scale(timer3$dur)
 
-timer3$greenup_s<-scale(timer3$slope)
-timer3$green_var<-scale(timer3$se_doy)
-
-timer3<-filter(timer3,howshift!="earlier & later")
-timer3$how<-ifelse(timer3$howshift=="earlier",0,1)
+#timer3<-filter(timer3,howshift!="earlier & later")
+#timer3$how<-ifelse(timer3$howshift=="earlier",0,1)
 modhow1 <- brm(
-  formula = how~(1|species)+(1|ResponseId), iter=5000,warmup=4000, control = list(adapt_delta=0.99),
+  formula = howshift~(1|species)+(1|juris)+(1|ResponseId), iter=5000,warmup=4000, control = list(adapt_delta=0.99),
   data = timer3,
-  family = "bernoulli")
+  family = "categorical")
+
+summary(modhow1)
+
+save.image("phenmods.Rda")
+newdaterz<-data.frame(dur=10,dataset=unique(d$dataset))
+newdaterz2<-data.frame(dur=seq(1,40,by=1) ,dataset=unique(d$dataset))
+
+predscc<-epred_draws(model.1ac,newdata=newdaterz,re_formula = NA)
+predscc2<-epred_draws(model.1ac,newdata=newdaterz2,re_formula = NA)
+
+predmc<-epred_draws(model.mc1,newdata=newdaterz,re_formula = NA)
+predmc2<-epred_draws(model.mc1,newdata=newdaterz2,re_formula = NA)
+
+predhow<-epred_draws(modhow1,newdata=newdaterz,re_formula = NA)
+
+predcc1<- predscc %>% mean_qi(.epred, .width = c(0.5))
+predmc1<- predmc %>% mean_qi(.epred, .width = c(0.5))
+predhow1<- predhow %>% group_by(.category) %>% mean_qi(.epred, .width = c(0.5))
+
+
+quartz()
+ggplot(predmc2,aes(dur,.epred*100))+stat_lineribbon(aes(fill=dataset),.width = c(.5))+
+  ylab("probability of adjusting management timing")+
+  ggthemes::theme_few()+xlab("years of managements")+ylim(0,100)+
+  scale_fill_manual(values=c("maroon4","skyblue4"))
+
+predscc2$dataset<-"observe"
+pred2<-rbind(predscc2,predmc2)
+
+ggplot(predscc2,aes(dur,.epred*100))+stat_lineribbon(.width = c(.5),fill="tan")+
+  ylab("probability of observing phenological shifts")+
+  ggthemes::theme_few()+xlab("years of managements")+ylim(0,100)
+
+pc<-ggplot(predhow1,aes(reorder(.category,-.epred),.epred*100))+
+  geom_bar(stat="identity",aes())+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2))+
+  ylab("direction of management shift")+
+  scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few()
+pc
+pa<-ggplot(predcc1,aes(0,.epred*100))+
+  geom_bar(stat="identity",fill="tan",color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                width = 0.2))+
+  ylab("probability of observing phenological shifts")+
+  scale_x_discrete(name="")+ylim(0,70)+ggthemes::theme_few()
+quartz()
+pb<-ggplot(predmc1,aes(dataset,.epred*100))+
+  geom_bar(stat="identity",aes(fill=dataset))+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                width = 0.2))+
+  ylab("probability of adjusting management timing")+
+  ylim(0,100)+ggthemes::theme_few()+scale_fill_manual(values=c("maroon4","skyblue4"))+
+  theme(legend.position ="none")
+
+
+quartz()
+ggpubr::ggarrange(pa,pb,pc,ncol=3,widths=c(1,2,2))
+ggplot(predz,aes(response,.epred))+stat_pointinterval(aes(color=dataset))
+
+quartz()
+conditional_effects(model.1a,prob = .5)
+summary(model.1a,probs = 0.5)
+#d.site<-filter(d, juris=="Single site")
+
+#model.1a.site<-brm(CC~dur_s+minCareer_s+(1|species)+(1|state)+(1|agency)+(1|ResponseId),
+#              iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d.site,family = "bernoulli")
+
+
+
+#range(d$anomoly,na.rm=TRUE)
+#model.1b<-brm(CC~dur_s*minCareer_sanom_s+(anom_s|species)+(lat_sc|agency)+(1|ResponseId),
+ #             iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
+
+#fixef(model.1,probs = c(.25,.75))
+#fixef(model.1a,probs = c(.25,.75))
+quartz()
+conditional_effects(model.1,prob = .5)
+
+conditional_effects(model.1a,prob = .5)
+fixef(model.1b,probs = c(.25,.75))
+
+spdata<-data.frame(species=unique(d$species),dur=10)
+
+jurisdata<-data.frame(juris=unique(d$juris),dur=10)
+agedata<-data.frame(agency=unique(d$agency),dur=15)
+agedata<-filter(agedata,agency!='Tribal/First Nation')###not in model
+
+quantile(d$dur,na.rm=TRUE)
+range(d$anom_s,na.rm=TRUE)
+
+
+
+preds<-epred_draws(model.1ac,newdata=spdata,re_formula = ~(1|species))
+#predage<-epred_draws(model.1a,newdata=agedata,re_formula = ~(1|agency))
+predjuris<-epred_draws(model.1ac,newdata=jurisdata,re_formula = ~(1|juris))
+
+
+quartz()
+ggplot(preds,aes(reorder(species,.epred),.epred*100))+
+                          stat_pointinterval(.width = c(.01,.5))+#ylim(0,1)+
+                          ggthemes::theme_few()+coord_cartesian(ylim=c(0,100))+
+                          ylab( "probability of of observing \nphenological shifts")+xlab("species")+
+                          theme(axis.text.x = element_text(angle = 45, hjust = 1))
+                        
+                
+                        ggplot(predjuris,aes(reorder(juris,.epred),.epred))+
+                          stat_pointinterval(.width = c(.01,.5))+coord_cartesian(ylim=c(.1,.9))+
+                          #ylim(0,1)
+                          ggthemes::theme_few()+
+                          ylab( "Likelihood of observing \nphenological shifts")+xlab("agency")+
+                          theme(axis.text.x = element_text(angle = 45, hjust = 1))
+                        
+
+
+ggpubr::ggarrange(oneA,oneB,ncol=1,nrow=2) ###FIgure 1
+
+
+
+
+
+spdata2<-data.frame(species=rep(unique(d2$species),2),dataset=rep(c("time","frequency"),each=21),
+                    dur=10)
+statedata2<-data.frame(state=rep(unique(d2$state),2),dataset=rep(c("time","frequency"),each=24),dur_s=mean(d2$dur_s,na.rm=TRUE),minCareer_s=mean(d2$minCareer_s))
+
+agedata2<-data.frame(juris=rep(unique(d2$juris),2),dataset=rep(c("time","frequency"),each=4),dur=mean(d2$dur,na.rm=TRUE))
+
+
+preds2<-epred_draws(model.mc1,newdata=spdata2,re_formula = ~(1|species))
+predstate2<-epred_draws(model.mc1,newdata=statedata2,re_formula = ~(1|state))
+
+
+predage2<-epred_draws(model.mc1,newdata=agedata2,re_formula = ~(1|juris))
+#options(device = "quartz")
+quartz()
+ggplot(preds2,aes(reorder(species,.epred),.epred*100))+
+  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
+  ggthemes::theme_few()+coord_cartesian(ylim=c(0,100))+
+  ylab( "probability of adjusting \n management timing")+xlab("species")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values=c("maroon4","skyblue4"))+scale_shape_manual(values=c(15,17))
+
+
+#ggplot(predstate2,aes(reorder(state,.epred),.epred))+
+ # stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
+#  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
+#  ylab( "Likelihood adjusting management")+xlab("state")+
+ # theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3")),
+
+ggplot(predage2,aes(reorder(juris,.epred),.epred))+
+  stat_pointinterval(.width = c(.01,.5),aes())+#ylim(0,1)+
+  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
+  ylab( "Likelihood adjusting management")+xlab("agency")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values=c("firebrick4","seagreen3"))
+
+######how is management shifting
 
 
 conditional_effects(modhow1,prob = .5)
@@ -338,12 +393,22 @@ spdata3<-filter(spdata2,species!="impatiens")
 pred3<-epred_draws(modhow1,newdata = spdata3,re_formula = ~(1|species))
 
 
-statedata3<-filter(statedata2,state!="Kansas")
-pred3a<-epred_draws(modhow1,newdata = statedata3,re_formula = ~(1|state))
+
+predhow3<- pred3 %>% group_by(.category,species) %>% mean_qi(.epred, .width = c(0.5))
+
+ggplot(predhow3,aes(reorder(species,-.epred),.epred*100))+
+  geom_bar(stat="identity",aes(fill=.category))+
+ # geom_errorbar(aes(ymin = .lower*100, 
+  #                  ymax = .upper*100, 
+   #              width = 0.2))+
+  ylab("direction of management shift")+
+  scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few()
+
 
 pd<-position_dodge(width=0.3)
+quartz()
 ggplot(pred3,aes(reorder(species,.epred),.epred))+
-  stat_pointinterval(.width = .5)+#ylim(0,1)+
+  stat_pointinterval(.width = .5,aes(color=.category))+#ylim(0,1)+
   ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
   ylab( "<-eariler-later->")+xlab("species")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
