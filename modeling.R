@@ -14,17 +14,27 @@ library(ggplot2)
 library(rstan)
 library(brms)
 library(tidybayes)
-library(geosphere)
-library(rnaturalearth)
-library(sf)
 
- 
 graphics.off()
 
 if(length(grep("danielbuona", getwd()) > 0)) { # a fancy way to set your working direcyotu
   setwd("~/Documents/git/stilts/")
 } else if(length(grep("fitz", getwd()) > 0)) {
   setwd("")}
+
+timeidk<-read.csv("Input/idktime.csv")
+freqidk<-read.csv("Input/idkfreq.csv")
+
+mergeidk1<-select(timeidk,ResponseId,idk,dur,career,minCareer,state,species,agency,juris)
+mergeidk2<-select(freqidk,ResponseId,idk,dur,career,minCareer,state,species,agency,juris)
+
+mergeidk1$dataset<-"time"
+mergeidk2$dataset<-"frequency"
+
+IDK<-rbind(mergeidk1,mergeidk2)
+
+model.idk<-brm(idk~dur+career+(1|ResponseId),
+              iter=4000,warmup=3000, control = list(adapt_delta=0.99), data=IDK,family = "bernoulli")
 
 timer<-read.csv("Input/timing_clean.csv")
 freqer<-read.csv("Input/frequency_clean.csv")

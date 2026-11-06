@@ -6,6 +6,7 @@ library(dplyr)
 library(ggplot2)
 library(brms)
 library(tidybayes)
+library(ggplot2)
 
 if(length(grep("danielbuonaiuto", getwd()) > 0)) { # a fancy way to set your working direcyotu
   setwd("~/Documents/git/stilts/")
@@ -31,12 +32,82 @@ time$minCareer<-ifelse(time$career=="6 to 10 years",6,time$minCareer)
 
 ###remove NA's frome response
 freq<-filter(freq,!is.na(freqchange))
+freq<-filter(freq,freqchange!="")
 freq$minCareer<-ifelse(freq$career=="10+ years",10,0.1)
 freq$minCareer<-ifelse(freq$career=="2 to 5 years",2,freq$minCareer)
 freq$minCareer<-ifelse(freq$career=="6 to 10 years",6,freq$minCareer)
 
+unique(time$timechange)
+time$timechange_clean<-time$timechange
+time$timechange_clean<-ifelse(time$timechange=='Treatment starting earlier due to changing phenology',
+                              'Earlier due to changing phenology',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Treatment ending later due to changing phenology',
+                              'Later due to changing phenology',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Treatment starting earlier due to changing phenology,Treatment ending later due to changing phenology',
+                              'Earlier due to changing phenology,Later due to changing phenology',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Treatment starting earlier due to changing phenology,Treatment ending later due to changing phenology,Starting earlier or ending later for other reasons',
+                              'Earlier due to changing phenology,Later due to changing phenology',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Starting earlier or ending later for other reasons',
+                              'Earlier or later for other reasons',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange_clean=='Earlier due to changing phenology,Later due to changing phenology',
+                              'Earlier & later due to changing phenology',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Starting earlier or ending later for other reasons,At the same time despite changing phenology',
+                              'Earlier or later for other reasons',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=='Earlier or later for other reasons,At the same time due to no change in phenology',
+                              'Earlier or later for other reasons',
+                              time$timechange_clean)
+
+time$timechange_clean<-ifelse(time$timechange=="Other,I don't know",
+                              'Other',
+                              time$timechange_clean)
+
+
+raw.time<-time %>% group_by(timechange_clean) %>% count()
+
+unique(raw.time$timechange_clean)
+raw.time$`%`<-raw.time$n/sum(raw.time$n)*100
+
+raw.time<-filter(raw.time,`%` >0.2)
+
+ggplot(raw.time,aes(`%`,reorder(timechange_clean,`%`)))+geom_bar(stat="identity",fill="beige",color="black")+ylab("timing")+xlab("response %")+
+  ggthemes::theme_few()
+
+unique(freq$freqchange)
+freq$freqchange_clean<-freq$freqchange
+freq$freqchange_clean<-ifelse(freq$freqchange=="More frequently due to changing phenology,Less frequently due to changing phenology",)
+
+raw.freq<-freq %>% group_by(freqchange) %>% count()
+raw.freq$`%`<-raw.freq$n/sum(raw.freq$n)*100
+raw.freq<-filter(raw.freq,`%` >0.2)
+unique(raw.freq$freqchange)
+
+jpeg("raw_responses.jpeg",width =13,height=11, unit='in',res=100)
+ggpubr::ggarrange(ggplot(raw.time,aes(`%`,reorder(timechange_clean,`%`)))+geom_bar(stat="identity",fill="beige",color="black")+ylab("timing")+xlab("response %")+
+                    ggthemes::theme_clean(),
+ggplot(raw.freq,aes(`%`,reorder(freqchange,`%`)))+geom_bar(stat="identity",fill="beige",color="black")+ylab("frequency")+xlab("response %")+
+  ggthemes::theme_clean(),ncol=2,labels=c("a)","b)"))
+dev.off()
+
+
 time$idk<-ifelse(time$timechange%in% c("I don't know","Other,I don't know", "Other", "NA"),0,1)
 freq$idk<-ifelse(freq$freqchange%in% c("I don't know","Other,I don't know", "Other", "NA", "I don’t know",""),0,1)
+
+write.csv(time,"Input/idktime.csv",row.names = FALSE)
+write.csv(freq,"Input/idkfreq.csv",row.names = FALSE)
 
 ### get rid of idk for now
 timer<-filter(time,idk==1)
