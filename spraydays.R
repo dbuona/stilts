@@ -34,13 +34,24 @@ candidate_stations <- us_stations[
 ]
 
 sort(table(candidate_stations$st))
-candidate_stations<-filter(candidate_stations,!st %in% c("ME","NH","VT","NY","MA","CT","RI","NJ","PA","DE","MD",
+candidate_stations<-filter(candidate_stations,st %in% c("ME","NH","VT","NY","MA","CT","RI","NJ","PA","DE","MD",
                                                          "VA","KY"))
 
 if(FALSE){
+  test <- tryCatch(
+    import_isd_hourly(
+      code = "700260-27502",
+      year = 2020
+    ),
+    error = function(e) {
+      message("ERROR: ", e$message)
+      NULL
+    }
+  )  
+warnings()  
 test <- import_isd_hourly(quiet = FALSE,
   
-  code = 724010-13740,
+  code = candidate_stations$code[1],
   year = 1960:2020
 )
 
