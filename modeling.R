@@ -36,7 +36,7 @@ IDK<-rbind(mergeidk1,mergeidk2)
 model.idk<-brm(idk~dur+minCareer+(1|ResponseId),
               iter=4000,warmup=3000, control = list(adapt_delta=0.99), data=IDK,family = "bernoulli")
 
-quartz()
+summary(model.idk)
 conditional_effects(model.idk)
 timer<-read.csv("Input/timing_clean.csv")
 freqer<-read.csv("Input/frequency_clean.csv")

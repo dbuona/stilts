@@ -3,8 +3,8 @@
 rm(list=ls()) #removes everything in R environment
 options(stringsAsFactors = FALSE) #stops R from automatically treating string as factors
 options(mc.cores = parallel::detectCores()) # for Bayesian models, paralleled chain sampling
-graphics.off() # removes anything in graphic environemnt
-dev.off()
+#graphics.off() # removes anything in graphic environemnt
+#dev.off()
 library(worldmet)
 library(data.table)
 library(dplyr)
@@ -13,8 +13,6 @@ stations <- getMeta()
 
 head(stations)
 names(stations)
-
-library(data.table)
 
 # Convert to data.table
 stations <- as.data.table(stations)
@@ -36,13 +34,16 @@ candidate_stations <- us_stations[
 ]
 
 sort(table(candidate_stations$st))
-candidate_stations<-filter(candidate_stations,!st %in% c("AK","HI"))
+candidate_stations<-filter(candidate_stations,!st %in% c("ME","NH","VT","NY","MA","CT","RI","NJ","PA","DE","MD",
+                                                         "VA","KY"))
 
 if(FALSE){
-test <- importNOAA(
-  code = candidate_stations$code[1],
-  year = 1945:2025
+test <- import_isd_hourly(quiet = FALSE,
+  
+  code = 724010-13740,
+  year = 1960:2020
 )
+
 
 summary(test$air_temp)
 }
