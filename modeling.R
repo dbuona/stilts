@@ -30,13 +30,18 @@ mergeidk2<-select(freqidk,ResponseId,idk,dur,career,minCareer,state,species,agen
 
 mergeidk1$dataset<-"time"
 mergeidk2$dataset<-"frequency"
-
+rm(mergeidk1,mergeidk2)
 IDK<-rbind(mergeidk1,mergeidk2)
+IDK$dur_cent<-scale(IDK$dur,center = TRUE)
+IDK$species<-ifelse(IDK$species=="Artemesia","Artemisia",IDK$species) ##fix species name
 
-model.idk<-brm(idk~dur+minCareer+(1|ResponseId),
-              iter=4000,warmup=3000, control = list(adapt_delta=0.99), data=IDK,family = "bernoulli")
+model.idk<-brm(idk~dur+(1|species)+(1|ResponseId),
+               iter=5000,warmup=3000,
+               control = list(adapt_delta=0.99),
+               data=IDK,family = "bernoulli")
 
 summary(model.idk)
+quartz()
 conditional_effects(model.idk)
 timer<-read.csv("Input/timing_clean.csv")
 freqer<-read.csv("Input/frequency_clean.csv")
@@ -65,6 +70,7 @@ temp<-temp[,c(2,4)]
 colnames(temp)<-c("state","anomoly")
 d<-left_join(d,temp)  
 }
+if(FALSE){
 gren<-read.csv("Input/Spring_Shift_2001_2024.csv")
 colnames(gren)[1]<-"state"
 d<-left_join(d,gren)  
@@ -74,8 +80,9 @@ NECASC<-c("Maine", "New Hampshire", "Vermont","Massachusetts", "Rhode Island",
           "Maryland","Virginia", "Kentucky", "West Virginia")
 
 #d<-filter(d,state %in% NECASC)
-d$minCareer_s<-scale(d$minCareer)
-d$dur_s<-scale(d$dur)
+}
+#d$minCareer_s<-scale(d$minCareer)
+d$dur_cent<-scale(d$dur,center = TRUE)
 #d$greenup_s<-scale(d$slope)
 #d$green_var<-scale(d$se_doy)
 
@@ -132,19 +139,35 @@ d$lat_sc<-scale(d$lat)
 
 }
 d$career<-as.factor(d$minCareer)
-cor(d$greenup_s,d$green_var)
-#model.1<-brm(CC~dur+slope+(1|species)+(1|ResponseId),
-#             iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
+get_prior(CC~dur+(1|species)+(1|ResponseId), data=d,family = "bernoulli")
 
+model.1<-brm(CC~dur+(1|species)+(1|ResponseId),
+             iter=5000,warmup=3000,
+             control = list(adapt_delta=0.99),
+             data=d,family = "bernoulli")
+summary(model.1)
+if(FALSE){
 unique(d$juris)
 d.prime<-filter(d, juris!=" Other (please specify)")
+quantile(d$dur,na.rm = TRUE)
+d$dur_cat<-ifelse(d$dur<6,"0-5","6-10")
+d$dur_cat<-ifelse(d$dur>10,"",d$dur_cat)
+d$dur_cat<-ifelse(d$dur>15,"16+",d$dur_cat)
+
+mod.varpar<-brm(CC~(1|species)+(1|juris)+(1|agency)+(1|dur_cat)+(1|career)+(1|ResponseId),
+                save_pars = save_pars(all = TRUE),
+iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
+summary(mod.varpar)
+coef(mod.varpar,probs = c(.25,.75))
+
+
 model.1a<-brm(CC~dur+(1|species)+(1|juris)+(1|agency)+(1|state)+(1|ResponseId),
              iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
 model.1ab<-brm(CC~dur+(1|species)+(1|juris)+(1|agency)+(1|ResponseId),
               iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-model.1ac<-brm(CC~dur+(1|species)+(1|juris)+(1|ResponseId),
+model.1ac<-brm(CC~dur+(1|species)+(1|juris)+(1|ResponseId),save_pars = save_pars(all = TRUE),
                iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
 model.1ad<-brm(CC~dur+(1|species)+(1|juris)+(1|state)+(1|ResponseId),
@@ -156,7 +179,7 @@ model.1ae<-brm(CC~dur+(1|species)+(1|state)+(1|ResponseId),
 model.1af<-brm(CC~dur+(1|species)+(1|agency)+(1|ResponseId),
                iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
-model.1ag<-brm(CC~dur+(1|species)+(1|ResponseId),
+model.1ag<-brm(CC~dur+(1|species)+(1|ResponseId), save_pars = save_pars(all = TRUE),
                iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
 
 summary(model.1ag)
@@ -167,9 +190,13 @@ model.1ac<-add_criterion(model.1ac, "loo",moment_match = TRUE)
 model.1ad<-add_criterion(model.1ad, "loo",moment_match = TRUE)
 model.1ae<-add_criterion(model.1ae, "loo",moment_match = TRUE)
 model.1af<-add_criterion(model.1af, "loo",moment_match = TRUE)
-model.1ag<-add_criterion(model.1ag, "loo",moment_match = TRUE)
-loo_compare(model.1a,model.1ab,model.1ac,model.1ad,model.1ae,model.1af,model.1ag,criterion = "loo")
 
+mod.varpar<-add_criterion(mod.varpar, "loo",moment_match = TRUE,reloo = TRUE)
+model.1ag<-add_criterion(model.1ag, "loo",moment_match = TRUE,reloo = TRUE)
+model.1ac<-add_criterion(model.1ac, "loo",moment_match = TRUE,reloo = TRUE)
+
+loo_compare(model.1ac,model.1ag,mod.varpar,criterion = "loo")
+}
 ### now change
 timer2<-read.csv("Input/timing_cleanCC.csv")
 freqer2<-read.csv("Input/frequency_cleanCC.csv")
@@ -180,10 +207,11 @@ merge22<-select(freqer2,ResponseId,management_shift,dur,minCareer,state,species,
 merge11$dataset<-"time"
 merge22$dataset<-"frequency"
 d2<-rbind(merge11,merge22)
+rm(merge11,merge22)
 #d2$minCareer_s<-scale(d2$minCareer)
 #d2$dur_s<-scale(d2$dur)
 d2$species<-ifelse(d2$species=="Artemesia","Artemisia",d2$species) ##fix species name
-
+d2$dur_cent<-scale(d2$dur, center=TRUE)
 #d2<-filter(d2, state %in% NECASC)
 #d2<-left_join(d2,gren)
 
@@ -191,8 +219,9 @@ d2$species<-ifelse(d2$species=="Artemesia","Artemisia",d2$species) ##fix species
 #d2$dur_s<-scale(d2$dur)
 
 
-model.mc1<-brm(management_shift~dur+dataset+(dataset|species)+(dataset|juris)+(1|ResponseId),
-               iter=5000,warmup=4000, control = list(adapt_delta=0.99),
+model.mc1<-brm(management_shift~dur+dataset+(dataset|species)+(1|ResponseId),
+               iter=5000,warmup=3000,
+               control = list(adapt_delta=0.99),
                data=d2,family = "bernoulli")
 
 summary(model.mc1)
@@ -222,30 +251,34 @@ timer3$howshift <- relevel(as.factor(timer3$howshift), ref = "earlier & later")
 table(freqer3$freqchange)
 freqer3$howshift<-ifelse(freqer3$freqchange %in% c("Less frequently due to changing phenology","Less frequently due to changing phenology,Other"),"less","more")
 
-merge111<-select(timer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
-merge222<-select(freqer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
+#merge111<-select(timer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
+#merge222<-select(freqer3,ResponseId,dur,minCareer,state,species,agency,juris,howshift)
 
 
 timer3$species<-ifelse(timer3$species=="Artemesia","Artemisia",timer3$species) ##fix species name
-
+timer3$dur_cent<-scale(timer3$dur,center = TRUE)
 #timer3<-filter(timer3,state %in% NECASC)
 
 
 #timer3<-filter(timer3,howshift!="earlier & later")
 #timer3$how<-ifelse(timer3$howshift=="earlier",0,1)
 modhow1 <- brm(
-  formula = howshift~(1|species)+(1|juris)+(1|ResponseId), iter=5000,warmup=4000, control = list(adapt_delta=0.99),
+  formula = howshift~dur+(1|species)+(1|ResponseId),
+  iter=5000,warmup=3000,
+  control = list(adapt_delta=0.99),
   data = timer3,
   family = "categorical")
 
 summary(modhow1)
 
 save.image("phenmods.Rda")
-newdaterz<-data.frame(dur=10,dataset=unique(d$dataset))
-newdaterz2<-data.frame(dur=seq(1,40,by=1) ,dataset=unique(d$dataset))
+newdaterz<-data.frame(dur=mean(d$dur,na.rm=TRUE),dataset=unique(d$dataset))
 
-predscc<-epred_draws(model.1ac,newdata=newdaterz,re_formula = NA)
-predscc2<-epred_draws(model.1ac,newdata=newdaterz2,re_formula = NA)
+newdaterz2<-data.frame(dur=rep(seq(min(d$dur,na.rm=TRUE),max(d$dur, na.rm=TRUE),by=1),2), dataset=rep(unique(d$dataset)),each=41)
+
+predscc<-epred_draws(model.1,newdata=newdaterz,re_formula = NA)
+predscc2<-epred_draws(model.1,newdata=newdaterz2,re_formula = NA)
+predsIDK<-epred_draws(model.idk,newdata=newdaterz2,re_formula = NA)
 
 predmc<-epred_draws(model.mc1,newdata=newdaterz,re_formula = NA)
 predmc2<-epred_draws(model.mc1,newdata=newdaterz2,re_formula = NA)
@@ -261,35 +294,37 @@ predhow1<- predhow %>% group_by(.category) %>% mean_qi(.epred, .width = c(0.5))
 
 #figure 1
 quartz()
-pdf("cclike.pdf",width = 3,height = 7)
-ggplot(predcc1,aes(0,.epred*100))+
-  geom_bar(stat="identity",fill="tan",color="black")+
-  geom_errorbar(aes(ymin = .lower*100, 
-                    ymax = .upper*100, 
-                    width = 0.2))+
-  ylab("probability of observing phenological shifts")+
-  scale_x_discrete(name="")+ylim(0,70)+ggthemes::theme_few()
-dev.off()
+
+
+
 head(d)
-durdat<-dplyr::select(d,ResponseId,dur)
+durdat<-dplyr::select(IDK,ResponseId,dur)
 durdat<-unique(durdat)
 quartz()
 
 gumby<-ggpubr::ggarrange(
+  ggplot(predsIDK,aes(dur,.epred*100))+stat_lineribbon(.width = c(.5),fill="grey")+
+    ylab("probability of \nhaving knowledge of \nphenology & management shifts")+
+    ggthemes::theme_few()+xlab("years of management experience")+ylim(0,100),
 ggplot(predscc2,aes(dur,.epred*100))+stat_lineribbon(.width = c(.5),fill="tan")+
-  ylab("probability of observing phenological shifts")+
+  ylab("probability of \nobserving phenological shifts")+
   ggthemes::theme_few()+xlab("years of management experience")+ylim(0,100),
 ggplot(predmc2,aes(dur,.epred*100))+stat_lineribbon(aes(fill=dataset),.width = c(.5))+
-  ylab("probability of adjusting management timing")+theme(legend.position = "top")+
+  ylab("probability of adjusting \nmanagement timing")+theme(legend.position = "top")+
   ggthemes::theme_few()+xlab("years of management experience")+ylim(0,100)+
-  scale_fill_manual(values=c("maroon4","skyblue4")),widths=c(1,1.5),labels=c("b)","c)"),common.legend = TRUE)
+  scale_fill_manual(values=c("maroon4","skyblue4")),widths=c(1,1,1.3),labels=c("b)","c)","d)"),
+common.legend = FALSE,ncol=3)
 
-jpeg("manage_duration.jpeg",width =8,height=7, unit='in',res=100)
+quartz()
+jpeg("Figures/figure3.jpeg",width = 14,height=10,units = 'in',res=200)
 ggpubr::ggarrange(ggplot(durdat,aes(dur))+geom_histogram(fill="lightgray",color="black",bins=20)+
-                    ggthemes::theme_few()+xlab("years of management experience"),gumby,ncol=1,heights=c(.75,1.5))
+                    ggthemes::theme_few()+xlab("years of management experience"),gumby,ncol=1,heights=c(.75,1.5),labels=c("a)",""))
 dev.off()
 
 quartz()
+spdata<-data.frame(species=unique(d$species),dur=mean(d$dur,na.rm=TRUE))
+preds<-epred_draws(model.1,newdata=spdata,re_formula = ~(1|species))
+
 predsccSP<-preds %>% group_by(species) %>% mean_qi(.epred, .width = c(0.5))
 
 
@@ -305,6 +340,12 @@ spdata2<-data.frame(species=rep(unique(d2$species),2),dataset=rep(c("time","freq
 pd=position_dodge(width = .8)
 preds2<-epred_draws(model.mc1,newdata=spdata2,re_formula = ~(1|species))
 
+names<-data.frame(species=unique(d$species),
+                  spp=c("R. japonica","A. vulgaris", "B. thunbergii", "M. vimineum",
+                        "P. montana", "C. orbiculatus", "P. nigra", "V. nigrum", "R. cathartica",
+                        "E. umbellata","I. glandulifera", "Lonicera spp.", "M. sinensis",
+                        "R. multiflora", "A. platanoides", "P. australus","C. scoparius",
+                        "C. stoebe", "A. altissima", "P. sativa", "Ligustrum spp", "L. japonica"))
 predsmcSP<-preds2 %>% group_by(species,dataset) %>% mean_qi(.epred, .width = c(0.5))
 
 spdata3<-filter(spdata2,species!="impatiens")
@@ -322,24 +363,31 @@ pred3$woody<-ifelse(pred3$species %in% c(shrub,tree,Vine),"woody","non-woody")
 
 preds2$woody<-NA
 preds2$woody<-ifelse(preds2$species %in% c(shrub,tree,Vine),"woody","non-woody")
+
+preds$woody<-NA
+preds$woody<-ifelse(preds$species %in% c(shrub,tree,Vine),"woody","non-woody")
+
 predsmcW<-preds2 %>% group_by(woody,dataset) %>% mean_qi(.epred, .width = c(0.5))
-
-
-
 predhowW<- pred3 %>% group_by(.category,woody) %>% mean_qi(.epred, .width = c(0.5))
+predW<- preds %>% group_by(woody) %>% mean_qi(.epred, .width = c(0.5))
+
 # Get the ordering based on the "later" category
+
 library(forcats)
+predhow3<-left_join(predhow3,names)
+
 species_order <- predhow3 %>%
   filter(.category == "later") %>%
   arrange(-.epred) %>%
-  pull(species)
+  pull(spp)
 
 
 ####Figure 3a
 
 
+predsmcSP<-left_join(predsmcSP,names)
 
-gumbers<-ggpubr::ggarrange(ggplot(predsmcSP,aes(reorder(species,.epred),.epred*100))+
+gumbers<-ggpubr::ggarrange(ggplot(predsmcSP,aes(reorder(spp,.epred),.epred*100))+
   geom_bar(stat="identity",position="dodge",aes(fill=dataset),color="black")+
   geom_errorbar(aes(ymin = .lower*100, 
                     ymax = .upper*100, 
@@ -351,7 +399,7 @@ gumbers<-ggpubr::ggarrange(ggplot(predsmcSP,aes(reorder(species,.epred),.epred*1
   scale_fill_manual(name="",values=c("maroon4","skyblue4"))+theme(legend.position = "top"),
 
 predhow3 %>%
-  mutate(species = factor(species, levels = species_order)) %>%
+  mutate(species = factor(spp, levels = species_order)) %>%
   ggplot(aes(x = species, y = .epred * 100)) +
   geom_bar(stat = "identity", aes(fill = .category),color="black") +
   ylab("direction of management shift") +
@@ -363,22 +411,22 @@ predhow3 %>%
   ) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),legend.position = "top"),ncol=2,labels=c("b)","c)"))
 
-jpeg("species_var.jpeg",width =13,height=11, unit='in',res=100)
-ggpubr::ggarrange(ggplot(predsccSP,aes(reorder(species,.epred),.epred*100))+
+predsccSP<-left_join(predsccSP,names)
+jpeg("Figures/figure4.jpeg",height=8,width = 10, unit='in',res=200)
+ggpubr::ggarrange(ggplot(predsccSP,aes(reorder(spp,.epred),.epred*100))+
   geom_bar(stat="identity",fill="tan",color="black")+
   geom_errorbar(aes(ymin = .lower*100, 
                     ymax = .upper*100, 
                     width = 0.2))+
-  ylab("probability of observing phenological shifts")+
+  ylab("probability of observing \nphenological shifts")+
   scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few()+
   theme(axis.text.x = element_text(angle = 45, hjust = 1)),gumbers,ncol=1,labels=c("a)",""),
   heights=c(.85,1))
 dev.off()
 
 
-jpeg("woody.jpeg",width =5,height=9, unit='in',res=100)
-ggpubr::ggarrange(
-  ggplot(predsmcW,aes(woody,.epred*100))+
+
+galahad<-ggpubr::ggarrange(ggplot(predsmcW,aes(woody,.epred*100))+
     geom_bar(stat="identity",position="dodge",aes(fill=dataset),color="black")+
     geom_errorbar(aes(ymin = .lower*100, 
                       ymax = .upper*100, 
@@ -387,18 +435,78 @@ ggpubr::ggarrange(
     ylab("probability of adjusting management timing")+
     scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few()+
     scale_fill_manual(name="",values=c("maroon4","skyblue4")),
-  ggplot(predhowW,aes(x = woody, y = .epred * 100)) +
-  geom_bar(stat = "identity", aes(fill = .category),color="black") +
+
+    
+    ggplot(predhowW,aes(x = ,.category, y = .epred * 100)) +
+  geom_bar(stat = "identity",position="dodge", aes(fill = woody),color="black") +
+    geom_errorbar(aes(ymin = .lower*100, 
+                      ymax = .upper*100, 
+                      width = 0.2, 
+                      group=woody),position=pd)+
   ylab("direction of management shift") +
   scale_x_discrete(name = "") +
   ylim(0, 100) +
   ggthemes::theme_few() +
   scale_fill_manual(name="",
-                    values = c("lightskyblue3", "lightskyblue1", "royalblue3")
-  ),ncol=1,heights=c(1.5,1),labels=c("a)","b)"))
+                    values = c("seagreen4","orange4"))
+    ,
+  ncol=1,heights=c(1.3,1),labels=c("b)","c)"))
 
+
+ 
+quartz()
+jpeg("Figures/figure5a.jpeg",height=10,width=10, unit='in',res=300)
+ggpubr::ggarrange(ggplot(predW,aes(woody,.epred*100))+
+  geom_bar(stat="identity",position="dodge",fill="tan",color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2),position=pd)+
+  ylab("probability of observing phenological shifts")+
+  scale_x_discrete(name="")+ylim(0,60)+ggthemes::theme_few(),galahad,labels=c("a)",""),widths=c(1,1.5))
 dev.off()
-  
+
+
+##figure 1
+demodata<-dplyr::select(IDK,ResponseId,state,juris,career,agency)
+demodata<-unique(demodata)
+state<-demodata%>%group_by(state) %>% count() 
+state<-filter(state,state!="")
+agency<-demodata%>%group_by(agency) %>% count() 
+juris<-demodata%>%group_by(juris) %>% count() 
+career<-demodata%>%group_by(career) %>% count() 
+career<-filter(career,career!="")
+
+jpeg("Figures/figure1.jpeg",height=10,width=10,units='in',res=200)
+ggpubr::ggarrange(
+ggplot(state, aes(x = "", y = n, fill = reorder(state,-n))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  labs(fill = "state")+scale_fill_viridis_d(option="turbo"),
+
+
+
+ggplot(agency, aes(x = "", y = n, fill = reorder(agency,-n))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  labs(fill = "agency")+scale_fill_viridis_d(option = "B"),
+
+ggplot(juris, aes(x = "", y = n, fill = reorder(juris,-n))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  labs(fill = "jurisdiction")+scale_fill_viridis_d(option = "C"),
+
+ggplot(career, aes(x = "", y = n, fill = reorder(career,-n))) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  labs(fill = "career experience")+scale_fill_viridis_d(option = "D"),labels=c("a)","b)","c)","d)"))
+dev.off()
+
+
+
 
 preds$LHC<-NA
 preds$LHC<-ifelse(preds$species %in% c(annualBiennial,perennial),"herbacious","tree")
@@ -411,26 +519,32 @@ preds$LHC<-ifelse(preds$species %in% c(shrub),"shrub",preds$LHC)
 predscc2$dataset<-"observe"
 pred2<-rbind(predscc2,predmc2)
 
+####figure 2#######################
+jpeg("Figures/figure2.jpeg",width=10, height=6,unit='in',res=100)
+ggpubr::ggarrange(ggplot(predcc1,aes(0,.epred*100))+
+  geom_bar(stat="identity",position="dodge",fill="tan",color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2))+
+  ylab("probability of observing phenological shifts")+
+  scale_x_discrete(name="")+ylim(0,50)+ggthemes::theme_few(),
+ggplot(predmc1,aes(dataset,.epred*100))+
+  geom_bar(stat="identity",aes(fill=dataset))+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2))+
+  ylab("probability of adjusting management timing")+
+  ylim(0,100)+ggthemes::theme_few()+scale_fill_manual(values=c("maroon4","skyblue4"))+
+  theme(legend.position ="none")+xlab(""),
 
-pdf("cclike3.pdf",width = 5,height=5)
+
 ggplot(predhow1,aes(reorder(.category,-.epred),.epred*100))+
   geom_bar(stat="identity",aes())+
   geom_errorbar(aes(ymin = .lower*100, 
                     ymax = .upper*100, 
                     width = 0.2))+
   ylab("direction of management shift")+
-  scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few()
-dev.off()
-
-pdf("cclike2.pdf",width = 4,height=5)
-ggplot(predmc1,aes(dataset,.epred*100))+
-  geom_bar(stat="identity",aes(fill=dataset))+
-  geom_errorbar(aes(ymin = .lower*100, 
-                    ymax = .upper*100, 
-                width = 0.2))+
-  ylab("probability of adjusting management timing")+
-  ylim(0,100)+ggthemes::theme_few()+scale_fill_manual(values=c("maroon4","skyblue4"))+
-  theme(legend.position ="none")
+  scale_x_discrete(name="")+ylim(0,100)+ggthemes::theme_few(),ncol=3,labels=c("a)","b)","c)"),widths=c(1,1.3,1.3))
 dev.off()
 
 quartz()
