@@ -263,7 +263,7 @@ timer3$dur_cent<-scale(timer3$dur,center = TRUE)
 #timer3<-filter(timer3,howshift!="earlier & later")
 #timer3$how<-ifelse(timer3$howshift=="earlier",0,1)
 modhow1 <- brm(
-  formula = howshift~dur+(1|species)+(1|ResponseId),
+  formula = howshift~(1|species)+(1|ResponseId),
   iter=5000,warmup=3000,
   control = list(adapt_delta=0.99),
   data = timer3,
@@ -283,11 +283,12 @@ predsIDK<-epred_draws(model.idk,newdata=newdaterz2,re_formula = NA)
 predmc<-epred_draws(model.mc1,newdata=newdaterz,re_formula = NA)
 predmc2<-epred_draws(model.mc1,newdata=newdaterz2,re_formula = NA)
 
-predhow<-epred_draws(modhow1,newdata=newdaterz,re_formula = NA)
+predhow<-epred_draws(modhow1,newdata=newdaterz2,re_formula = NA)
 
 predcc1<- predscc %>% mean_qi(.epred, .width = c(0.5))
 predmc1<- predmc %>% mean_qi(.epred, .width = c(0.5))
 predhow1<- predhow %>% group_by(.category) %>% mean_qi(.epred, .width = c(0.5))
+
 
 
 
@@ -328,9 +329,9 @@ preds<-epred_draws(model.1,newdata=spdata,re_formula = ~(1|species))
 predsccSP<-preds %>% group_by(species) %>% mean_qi(.epred, .width = c(0.5))
 
 
-ggplot(preds,aes(reorder(species,.epred),.epred*100))+
+ggplot(preds,aes(reorder(species,.epred),.epred*100-31))+
   stat_pointinterval(.width = c(0.01,.5),color="tan",shape=15)+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,100))+
+  ggthemes::theme_few()+
   ylab( "probability of of observing \nphenological shifts")+xlab("species")+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -475,37 +476,41 @@ agency<-demodata%>%group_by(agency) %>% count()
 juris<-demodata%>%group_by(juris) %>% count() 
 career<-demodata%>%group_by(career) %>% count() 
 career<-filter(career,career!="")
+ quartz()
 
-jpeg("Figures/figure1.jpeg",height=10,width=10,units='in',res=200)
-ggpubr::ggarrange(
-ggplot(state, aes(x = "", y = n, fill = reorder(state,-n))) +
-  geom_col(width = 1, color = "white") +
-  coord_polar(theta = "y", start = 0) +
-  theme_void() +
-  labs(fill = "state")+scale_fill_viridis_d(option="turbo"),
+ state$state2<-ifelse(state$n>9,state$state,"Other")
 
 
+ jpeg("Figures/figure1.jpeg",height=10,width=10,units='in',res=200)
+
+ ggpubr::ggarrange(
+   ggplot(state, aes(x = "", y = n, fill = reorder(state2,-n))) +
+     geom_col(width = 1, color = "white") +
+     coord_polar(theta = "y", start = 0) +
+     theme_bw() +
+     labs(fill = "state/province",x="",y="")+scale_fill_viridis_d(option="E")+
+     theme(axis.text = element_blank() ),
 
 ggplot(agency, aes(x = "", y = n, fill = reorder(agency,-n))) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y", start = 0) +
-  theme_void() +
-  labs(fill = "agency")+scale_fill_viridis_d(option = "B"),
+  theme_bw() +
+  labs(fill = "agency",y="",x="")+scale_fill_viridis_d(option = "B")+
+  theme(axis.text = element_blank() ),
 
 ggplot(juris, aes(x = "", y = n, fill = reorder(juris,-n))) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y", start = 0) +
-  theme_void() +
-  labs(fill = "jurisdiction")+scale_fill_viridis_d(option = "C"),
+  theme_bw() +
+  labs(fill = "jurisdiction",y="",x="")+scale_fill_viridis_d(option = "C")+theme(axis.text = element_blank() ),
 
 ggplot(career, aes(x = "", y = n, fill = reorder(career,-n))) +
   geom_col(width = 1, color = "white") +
   coord_polar(theta = "y", start = 0) +
-  theme_void() +
-  labs(fill = "career experience")+scale_fill_viridis_d(option = "D"),labels=c("a)","b)","c)","d)"))
+  theme_bw() +
+  labs(fill = "career experience",x="",y="")+scale_fill_viridis_d(option = "D")+theme(axis.text = element_blank() ),labels=c("a)","b)","c)","d)"),
+widths=c(1.5,1))
 dev.off()
-
-
 
 
 preds$LHC<-NA
@@ -548,158 +553,128 @@ ggplot(predhow1,aes(reorder(.category,-.epred),.epred*100))+
 dev.off()
 
 quartz()
-ggpubr::ggarrange(pa,pb,pc,ncol=3,widths=c(1,2,2))
-ggplot(predz,aes(response,.epred))+stat_pointinterval(aes(color=dataset))
+pan1<-ggpubr::ggarrange(ggplot()+
+  stat_lineribbon(data=predscc2,aes(dur,.epred*100),.width = c(.5),fill="tan")+
+  ylab("probability of \nobserving phenological shifts")+geom_vline(xintercept = mean(d$dur,na.rm=TRUE),linetype="dashed")+
+  ggthemes::theme_few(base_family='times',base_size = 14)+xlab("years of management experience")+ylim(0,75),
+  
+ggplot(predsccSP,aes(reorder(spp,.epred),.epred*100))+
+  geom_bar(stat="identity",fill="tan",color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2))+
+  ylab("")+
+  scale_x_discrete(name="target species")+ggthemes::theme_few(base_family = 'times',base_size = 14)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,face="italic")),
+
+ggplot(predW,aes(woody,.epred*100))+
+  geom_bar(stat="identity",position="dodge",fill="tan",color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2),position=pd)+geom_hline(yintercept=0)+
+  ylab("")+
+  scale_x_discrete(name="functional type")+ggthemes::theme_few(base_size = 14,base_family = 'times'),labels=c("a)","b)","c)"),
+ncol=3,widths=c(1,1.5,.5))
 
 quartz()
-conditional_effects(model.1a,prob = .5)
-summary(model.1a,probs = 0.5)
-#d.site<-filter(d, juris=="Single site")
+pan2<-ggpubr::ggarrange(ggplot(predmc2,aes(dur,.epred*100))+stat_lineribbon(aes(fill=dataset),.width = c(.5))+
+  ylab("probability of adjusting \nmanagement timing")+theme(legend.position = "top")+
+  ggthemes::theme_few(base_family = 'times',base_size = 14)+xlab("years of management experience")+ylim(0,100)+
+  scale_fill_manual(name="",values=c("maroon4","skyblue4"))+geom_vline(xintercept = mean(d2$dur,na.rm=TRUE),linetype="dashed"),
 
-#model.1a.site<-brm(CC~dur_s+minCareer_s+(1|species)+(1|state)+(1|agency)+(1|ResponseId),
-#              iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d.site,family = "bernoulli")
+ggplot(predsmcSP,aes(reorder(spp,.epred),.epred*100))+
+  geom_bar(stat="identity",position="dodge",aes(fill=dataset),color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2, 
+                    group=dataset),position=pd)+
+  ylab("")+
+  scale_x_discrete(name="target species")+ggthemes::theme_few(base_family = 'times',base_size = 14)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,face='italic'))+
+  scale_fill_manual(name="",values=c("maroon4","skyblue4"))+
+  theme(legend.position = "top")+facet_wrap(~dataset,ncol=1),
 
-
-
-#range(d$anomoly,na.rm=TRUE)
-#model.1b<-brm(CC~dur_s*minCareer_sanom_s+(anom_s|species)+(lat_sc|agency)+(1|ResponseId),
- #             iter=8000,warmup=7000, control = list(adapt_delta=0.99), data=d,family = "bernoulli")
-
-#fixef(model.1,probs = c(.25,.75))
-#fixef(model.1a,probs = c(.25,.75))
-quartz()
-conditional_effects(model.1,prob = .5)
-
-conditional_effects(model.1a,prob = .5)
-fixef(model.1b,probs = c(.25,.75))
-
-spdata<-data.frame(species=unique(d$species),dur=10)
-
-jurisdata<-data.frame(juris=unique(d$juris),dur=10)
-agedata<-data.frame(agency=unique(d$agency),dur=15)
-agedata<-filter(agedata,agency!='Tribal/First Nation')###not in model
-
-quantile(d$dur,na.rm=TRUE)
-range(d$anom_s,na.rm=TRUE)
-
-
-
-preds<-epred_draws(model.1ac,newdata=spdata,re_formula = ~(1|species))
-#predage<-epred_draws(model.1a,newdata=agedata,re_formula = ~(1|agency))
-predjuris<-epred_draws(model.1ac,newdata=jurisdata,re_formula = ~(1|juris))
-
+ggplot(predsmcW,aes(woody,.epred*100))+
+  geom_bar(stat="identity",position="dodge",aes(fill=dataset),color="black")+
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2, 
+                    group=dataset),position=pd)+
+  ylab("")+
+  scale_x_discrete(name="functional type")+ggthemes::theme_few(base_family = 'times',base_size = 14)+
+  scale_fill_manual(name="",values=c("maroon4","skyblue4"))+geom_hline(yintercept=0)+facet_wrap(~dataset,ncol=1),ncol=3,common.legend=TRUE,labels=c("a)","b)","c)"),widths=c(1,1.5,.5))
 
 quartz()
+jpeg("Figures/figure2.jpeg",width=10, height=6, unit='in',res=300)
+ggpubr::ggarrange(ggplot(durdat,aes(dur))+geom_histogram(fill="lightgray",color="black",bins=20)+
+  ggthemes::theme_few(base_size = 14,base_family = 'times')+xlab("years of management experience"),
 
-                        
-                
-                        ggplot(predjuris,aes(reorder(juris,.epred),.epred))+
-                          stat_pointinterval(.width = c(.01,.5))+coord_cartesian(ylim=c(.1,.9))+
-                          #ylim(0,1)
-                          ggthemes::theme_few()+
-                          ylab( "Likelihood of observing \nphenological shifts")+xlab("agency")+
-                          theme(axis.text.x = element_text(angle = 45, hjust = 1))
-                        
+ggplot(predsIDK,aes(dur,.epred*100))+stat_lineribbon(.width = c(.5),fill="grey")+
+  ylab("probability of having knowledge of \nphenology & management shifts")+
+  ggthemes::theme_few(base_size = 14,base_family = 'times')+
+  xlab("years of management experience")+ylim(75,100),labels=c("a)","b)"))
+dev.off()
 
-
-ggpubr::ggarrange(oneA,oneB,ncol=1,nrow=2) ###FIgure 1
-
-
-
-
-
-
-statedata2<-data.frame(state=rep(unique(d2$state),2),dataset=rep(c("time","frequency"),each=24),dur_s=mean(d2$dur_s,na.rm=TRUE),minCareer_s=mean(d2$minCareer_s))
-
-agedata2<-data.frame(juris=rep(unique(d2$juris),2),dataset=rep(c("time","frequency"),each=4),dur=mean(d2$dur,na.rm=TRUE))
-
-
-
-predstate2<-epred_draws(model.mc1,newdata=statedata2,re_formula = ~(1|state))
-
-
-predage2<-epred_draws(model.mc1,newdata=agedata2,re_formula = ~(1|juris))
-#options(device = "quartz")
 quartz()
-ggplot(preds2,aes(reorder(species,.epred),.epred*100))+
-  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,100))+
-  ylab( "probability of adjusting \n management timing")+xlab("species")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_color_manual(values=c("maroon4","skyblue4"))+scale_shape_manual(values=c(15,17))
 
-
-#ggplot(predstate2,aes(reorder(state,.epred),.epred))+
- # stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-#  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-#  ylab( "Likelihood adjusting management")+xlab("state")+
- # theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3")),
-
-ggplot(predage2,aes(reorder(juris,.epred),.epred))+
-  stat_pointinterval(.width = c(.01,.5),aes())+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-  ylab( "Likelihood adjusting management")+xlab("agency")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_color_manual(values=c("firebrick4","seagreen3"))
-
-######how is management shifting
-
-
-conditional_effects(modhow1,prob = .5)
-
-
-
-
-pd<-position_dodge(width=0.3)
+ggplot(predhow1,aes(dur,.epred))+stat_lineribbon(aes(fill=.category),.width = .5,alpha=0.6)+
+  ggthemes::theme_few(base_family = 'times',base_size = 14) +
+  scale_fill_manual(name="",
+                    values = c("lightskyblue3", "lightskyblue1", "royalblue3"))
 quartz()
-ggplot(pred3,aes(reorder(species,.epred),.epred))+
-  stat_pointinterval(.width = .5,aes(color=.category))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-  ylab( "<-eariler-later->")+xlab("species")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+pan3<-ggpubr::ggarrange(
+  ggplot(predhow1, aes(x = .category, y = .epred * 100)) +
+    geom_bar(stat = "identity", aes(fill = .category),color="black",position="dodge") +
+    ylab("direction of management shift") +
+    scale_x_discrete(name = "") +
+    geom_errorbar(aes(ymin = .lower*100, 
+                      ymax = .upper*100, 
+                      width = 0.2, 
+                      group=.category),position=pd)+
+    
+    ggthemes::theme_few(base_family = 'times',base_size = 14) +
+    scale_fill_manual(name="",
+                      values = c("lightskyblue3", "lightskyblue1", "royalblue3")),
+  
+  predhow3 %>%
+  mutate(species = factor(spp, levels = species_order)) %>%
+  ggplot(aes(x = species, y = .epred * 100)) +
+  geom_bar(stat = "identity", aes(fill = .category),color="black",position="dodge") +
+  ylab("direction of management shift") +
+  scale_x_discrete(name = "") +
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2, 
+                    group=.category),position=pd)+
 
+  ggthemes::theme_few(base_family = 'times',base_size = 14) +
+  scale_fill_manual(name="",
+                    values = c("lightskyblue3", "lightskyblue1", "royalblue3")
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,face='italic')),
 
-ggplot(pred3a,aes(reorder(state,.epred),.epred))+facet_wrap(~state,scale="free_x",nrow=3)+
-  stat_pointinterval(aes(color=.category,shape=.category),position=pd,.width=c(0.01,0.5),alpha=0.8)+
-  ggthemes::theme_few()+ylab("mangement shift")+xlab("state")+scale_color_viridis_d(option="H")+
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+ggplot(predhowW,aes(x = woody, y = .epred * 100)) +
+  geom_bar(stat = "identity",position="dodge", aes(fill = .category),color="black") +
+  geom_errorbar(aes(ymin = .lower*100, 
+                    ymax = .upper*100, 
+                    width = 0.2, 
+                    group=.category),position=pd)+
+  ylab("") +
+  scale_x_discrete(name = "") +
+  ggthemes::theme_few(base_family = 'times',base_size = 14)+scale_fill_manual(name="",
+                                          values = c("lightskyblue3", "lightskyblue1", "royalblue3")),
+common.legend = TRUE,labels=c("a)","b)","c)"),ncol=3,widths=c(1,1.5,.5)) 
 
+quartz()
+jpeg("Figures/figure3.jpeg",width=12,height=5,unit='in',res=200)
+pan1
+dev.off()
 
-#####playing with categories
+jpeg("Figures/figure4.jpeg",width=12,height=6,unit='in',res=200)
+pan2
+dev.off()
 
-annualBiennial<-c("Microstegium","Centaurea", "Pastinaca","impatiens")
-Vine<-c("Pueria","Celastrus","Lonicera japonica")
-perennial<-c("Retnoutria","Artemesia","Miscanthus","Phragmites","Vinetoxicum")
-shrub<-c("Berberis","Rhamnus","Elaeagnus","Lonicera","Rosa","Ligustrum","Cytisus")
-tree<-c("Acer","Ailanthis")
-
-preds2$woody<-NA
-preds2$woody<-ifelse(preds2$species %in% c(shrub,tree,Vine),"woody","non-woody")
-
-preds2$LHC<-NA
-preds2$LHC<-ifelse(preds2$species %in% c(annualBiennial,perennial),"herbacious","tree")
-preds2$LHC<-ifelse(preds2$species %in% c(Vine),"vine",preds2$LHC)
-
-preds2$LHC<-ifelse(preds2$species %in% c(shrub),"shrub",preds2$LHC) 
-
-ggplot(preds2,aes(reorder(woody,.epred),.epred))+
-  stat_pointinterval(.width = c(.01,.5),aes(color=dataset,shape=dataset))+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(0,1))+
-  ylab( "Likelihood adjusting management")+xlab("functional type")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_color_manual(values=c("firebrick4","seagreen3"))
-
-preds$woody<-NA
-preds$woody<-ifelse(preds$species %in% c(shrub,tree,Vine),"woody","non-woody")
-
-preds$LHC<-NA
-preds$LHC<-ifelse(preds$species %in% c(annualBiennial,perennial),"herbacious","tree")
-preds$LHC<-ifelse(preds$species %in% c(Vine),"vine",preds$LHC)
-preds$LHC<-ifelse(preds$species %in% c(shrub),"shrub",preds$LHC) 
-
-ggplot(preds,aes(reorder(LHC,.epred),.epred))+
-  stat_pointinterval(.width = .5)+#ylim(0,1)+
-  ggthemes::theme_few()+coord_cartesian(ylim=c(.1,.9))+
-  ylab( "Likelihood of observing \nphenological shifts")+xlab("species")+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
+jpeg("Figures/figure5.jpeg",width=12,height=5,unit='in',res=200)
+pan3
+dev.off()
